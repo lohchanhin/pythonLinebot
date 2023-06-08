@@ -40,13 +40,11 @@ async def callback(request: Request):
 # 处理用户发送的消息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event: MessageEvent):
+    print('halo')
     # 如果消息类型不是文本，则忽略
     if not isinstance(event.message, TextMessage):
         return
     
-    answerQuestion(event)
-
-def answerQuestion(event):
     text = event.message.text
     user_id = event.source.user_id
 
