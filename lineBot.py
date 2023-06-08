@@ -79,4 +79,4 @@ def handle_message(event: MessageEvent):
     user_conversations[user_id].append({"role": "assistant", "content": assistant_reply})
 
     # 使用 LINE API 回復用戶
-    line_bot_api.reply_message(event.replyToken, TextSendMessage(text=assistant_reply))
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=assistant_reply))
