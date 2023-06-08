@@ -1,0 +1,4 @@
+Flask==2.0.2
+line-bot-sdk==1.21.0
+openai==0.27.0
+python-dotenv==0.19.2
