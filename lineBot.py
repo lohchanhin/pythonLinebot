@@ -61,7 +61,7 @@ def handle_message(event):
 
     # 使用 OpenAI API 获取回复
     openai_response =  ai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4",
         messages=userConversations[user_id]
     )
 
