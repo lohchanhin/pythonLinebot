@@ -1,80 +1,82 @@
 from fastapi import FastAPI, Request, status, HTTPException
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import os
 import openai as ai
 
-
-# 配置 LINE 令牌和密钥
+# 獲取 LINE 密鑰
 channel_access_token = os.getenv('CHANNEL_ACCESS_TOKEN')
 channel_secret = os.getenv('CHANNEL_SECRET')
 
-# 获取 OpenAI API 密钥
-ai.api_key = os.getenv('OPENAI_API_KEY')
-
-# 创建 LINE 客户端
+# 創建 LINE 客戶端
 line_bot_api = LineBotApi(channel_access_token)
 handler = WebhookHandler(channel_secret)
 
 app = FastAPI()
 
-# 存储用户会话的对象
-userConversations = {}
+# 存儲用戶會話的對象
+user_conversations = {}
 
-# 使用FastAPI创建Webhook回调函数
+# 創建回調函數
 @app.post("/callback")
 async def callback(request: Request):
+    # 獲取請求簽名
     signature = request.headers["X-Line-Signature"]
+
+    # 獲取請求內容
     body = await request.body()
 
     try:
+        # 驗證簽名和處理請求
         handler.handle(body.decode(), signature)
     except InvalidSignatureError:
+        # 如果簽名不正確，則返回 HTTP 403 錯誤
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Invalid request"
         )
 
     return "OK"
 
-# 处理用户发送的消息
+# 處理用戶發送的消息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event: MessageEvent):
-    print('halo')
-    # 如果消息类型不是文本，则忽略
+    # 如果消息類型不是文本，則忽略
     if not isinstance(event.message, TextMessage):
         return
-    
+
+    # 進行自然語言處理並回復用戶
     text = event.message.text
     user_id = event.source.user_id
 
-    # 如果不存在该用户的对话，为其创建一个
-    if user_id not in userConversations:
-        userConversations[user_id] = [
+    # 如果不存在該用戶的對話，為其創建一個
+    if user_id not in user_conversations:
+        user_conversations[user_id] = [
             {"role": "system", "content": '你是人工智能助理'}
         ]
 
-    # 将用户消息添加到会话中
-    userConversations[user_id].append({"role": "user", "content": text + '回答字數限制在1000以內'})
+    # 將用戶消息添加到會話中
+    user_conversations[user_id].append({"role": "user", "content": text + '回答字數限制在1000以內'})
 
-    # 如果会话长度超过 4 条消息，则删除最早的一条
-    if len(userConversations[user_id]) > 4:
-        userConversations[user_id].pop(0)
+    # 如果會話長度超過 4 條消息，則刪除最早的一條
+    if len(user_conversations[user_id]) > 4:
+        user_conversations[user_id].pop(0)
 
-    # 使用 OpenAI API 获取回复
+    # 獲取 OpenAI API 密鑰
+    openai_api_key = os.getenv('OPENAI_API_KEY')
+
+    # 使用 OpenAI API 獲取回復
+    ai.api_key = openai_api_key
     openai_response =  ai.ChatCompletion.create(
         model="gpt-4",
-        messages=userConversations[user_id]
+        messages=user_conversations[user_id]
     )
 
-    # 获取助手回复的文本
+    # 獲取助手回復的文本
     assistant_reply = openai_response['choices'][0]['message']['content']
 
-    # 将助手回复添加到会话中
-    userConversations[user_id].append({"role": "assistant", "content": assistant_reply})
+    # 將助手回復添加到會話中
+    user_conversations[user_id].append({"role": "assistant", "content": assistant_reply})
 
-    # 使用 LINE API 回复用户
+    # 使用 LINE API 回復用戶
     line_bot_api.reply_message(event.replyToken, TextSendMessage(text=assistant_reply))
-
-
-
