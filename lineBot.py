@@ -75,5 +75,4 @@ def handle_message(event):
     line_bot_api.reply_message(event.replyToken, TextSendMessage(text=assistant_reply))
 
 
-if __name__ == "__main__":
-    app.run(port=os.getenv('PORT', 3000))
+
