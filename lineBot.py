@@ -1,4 +1,4 @@
-from flask import Flask, request, abort
+from fastapi import FastAPI, Request, status, HTTPException
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageMessage
@@ -17,32 +17,36 @@ ai.api_key = os.getenv('OPENAI_API_KEY')
 line_bot_api = LineBotApi(channel_access_token)
 handler = WebhookHandler(channel_secret)
 
-app = Flask(__name__)
+app = FastAPI()
 
 # 存储用户会话的对象
 userConversations = {}
 
-# 设置回调路由
-@app.route("/callback", methods=['POST'])
-def callback():
-    signature = request.headers['X-Line-Signature']
-
-    body = request.get_data(as_text=True)
-    app.logger.info("Request body: " + body)
+# 使用FastAPI创建Webhook回调函数
+@app.post("/callback")
+async def callback(request: Request):
+    signature = request.headers["X-Line-Signature"]
+    body = await request.body()
 
     try:
-        handler.handle(body, signature)
+        handler.handle(body.decode(), signature)
     except InvalidSignatureError:
-        abort(400)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid request"
+        )
 
-    return 'OK'
+    return "OK"
 
+# 处理用户发送的消息
 @handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
+def handle_message(event: MessageEvent):
     # 如果消息类型不是文本，则忽略
     if not isinstance(event.message, TextMessage):
         return
+    
+    answerQuestion(event)
 
+def answerQuestion(event):
     text = event.message.text
     user_id = event.source.user_id
 

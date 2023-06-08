@@ -1,4 +1,4 @@
-Flask
+fastapi
 line-bot-sdk
 openai
 python-dotenv
