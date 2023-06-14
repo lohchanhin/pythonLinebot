@@ -4,6 +4,7 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import os
 import openai as ai
+import requests
 
 # 獲取 LINE 密鑰
 channel_access_token = os.getenv('CHANNEL_ACCESS_TOKEN')
@@ -17,6 +18,21 @@ app = FastAPI()
 
 # 存儲用戶會話的對象
 user_conversations = {}
+
+def get_current_weather(location, units="metric"):
+    """Get the current weather in a given location"""
+    API_KEY = os.getenv('WEATHER_API_KEY')  # Get your API key from environment variables
+    response = requests.get(
+        f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={API_KEY}&units={units}"
+    )
+    weather_info = response.json()
+    return {
+        "location": location,
+        "temperature": weather_info["main"]["temp"],
+        "description": weather_info["weather"][0]["description"],
+        "units": units,
+    }
+
 
 # 創建回調函數
 @app.post("/callback")
@@ -68,9 +84,50 @@ def handle_message(event: MessageEvent):
     # 使用 OpenAI API 獲取回復
     ai.api_key = openai_api_key
     openai_response =  ai.ChatCompletion.create(
-        model="gpt-4",
-        messages=user_conversations[user_id]
+        model="gpt-4-0613",
+        messages=user_conversations[user_id],
+        functions=[
+            {
+                "name": "get_current_weather",
+                "description": "Get the current weather in a given location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                    },
+                    "required": ["location"],
+                },
+            }
+        ],
+        function_call="auto",
     )
+    # Step 2, check if the model wants to call a function
+    message = openai_response["choices"][0]["message"]
+    if "function_call" in message:
+        function_name = message["function_call"]["name"]
+        function_params = message["function_call"]["params"]
+
+        # Step 3, call the function
+        function_response = None
+        if function_name == "get_current_weather":
+            function_response = get_current_weather(**function_params)
+
+        # If other functions are defined, call them here
+        # ...
+
+        # Step 4, send model the info on the function call and function response
+        user_conversations[user_id].append({
+            "role": "function",
+            "name": function_name,
+            "content": function_response,
+        })
+
+    
+
 
     # 獲取助手回復的文本
     assistant_reply = openai_response['choices'][0]['message']['content']
