@@ -109,7 +109,8 @@ def handle_message(event: MessageEvent):
     message = openai_response["choices"][0]["message"]
     if "function_call" in message:
         function_name = message["function_call"]["name"]
-        function_params = message["function_call"]["params"]
+        function_params = message["function_call"].get("params", {}) # Use the .get() method to avoid KeyError
+
 
         # Step 3, call the function
         function_response = None
