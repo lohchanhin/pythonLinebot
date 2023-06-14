@@ -116,6 +116,7 @@ def handle_message(event: MessageEvent):
         else:
             function_response = "Location parameter is missing or None."
 
+        
         # Step 4, send model the info on the function call and function response
         user_conversations[user_id].append({
             "role": "function",
@@ -126,8 +127,21 @@ def handle_message(event: MessageEvent):
     
 
 
+    # # 獲取助手回復的文本
+    # assistant_reply = openai_response['choices'][0]['message']['content']
+
     # 獲取助手回復的文本
-    assistant_reply = openai_response['choices'][0]['message']['content']
+    choices = openai_response.get('choices')
+    if choices:
+        message = choices[0].get('message')
+        if message:
+            assistant_reply = message.get('content')
+            if not assistant_reply:
+                assistant_reply = '抱歉，我無法回答你的問題。'
+        else:
+            assistant_reply = '抱歉，我無法回答你的問題。'
+    else:
+        assistant_reply = '抱歉，我無法回答你的問題。'
 
     # 將助手回復添加到會話中
     user_conversations[user_id].append({"role": "assistant", "content": assistant_reply})
