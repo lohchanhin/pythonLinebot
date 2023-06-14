@@ -109,16 +109,12 @@ def handle_message(event: MessageEvent):
     message = openai_response["choices"][0]["message"]
     if "function_call" in message:
         function_name = message["function_call"]["name"]
-        function_params = message["function_call"].get("params", {}) # Use the .get() method to avoid KeyError
-
-
-        # Step 3, call the function
-        function_response = None
-        if function_name == "get_current_weather":
+        function_params = message["function_call"].get("params", {})
+        
+        if "location" in function_params and function_params["location"] is not None:
             function_response = get_current_weather(**function_params)
-
-        # If other functions are defined, call them here
-        # ...
+        else:
+            function_response = "Location parameter is missing or None."
 
         # Step 4, send model the info on the function call and function response
         user_conversations[user_id].append({
