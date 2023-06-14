@@ -110,41 +110,33 @@ def handle_message(event: MessageEvent):
     if "function_call" in message:
         function_name = message["function_call"]["name"]
         function_params = message["function_call"].get("params", {})
-        
-        if "location" in function_params and function_params["location"] is not None:
-            function_response = get_current_weather(**function_params)
-        else:
-            function_response = "Location parameter is missing or None."
 
-        
-        # Step 4, send model the info on the function call and function response
+        try:
+            if "location" in function_params and function_params["location"] is not None:
+                location = function_params["location"]
+                units = function_params.get("units", "metric")
+                function_response = get_current_weather(location, units)
+            else:
+                function_response = "Location parameter is missing or None."
+            
+            # 将函数回复赋值给助手回复
+            assistant_reply = function_response
+        except Exception as e:
+            # 如果函数调用失败，将错误消息赋值给助手回复
+            assistant_reply = str(e)
+
+        # 将函数调用的信息和结果添加到对话中
         user_conversations[user_id].append({
             "role": "function",
             "name": function_name,
             "content": function_response,
         })
 
-    
+    # 获取助手回复的文本
+    assistant_reply = openai_response['choices'][0]['message']['content']
 
-
-    # # 獲取助手回復的文本
-    # assistant_reply = openai_response['choices'][0]['message']['content']
-
-    # 獲取助手回復的文本
-    choices = openai_response.get('choices')
-    if choices:
-        message = choices[0].get('message')
-        if message:
-            assistant_reply = message.get('content')
-            if not assistant_reply:
-                assistant_reply = '抱歉，我無法回答你的問題。'
-        else:
-            assistant_reply = '抱歉，我無法回答你的問題。'
-    else:
-        assistant_reply = '抱歉，我無法回答你的問題。'
-
-    # 將助手回復添加到會話中
+    # 将助手回复添加到对话中
     user_conversations[user_id].append({"role": "assistant", "content": assistant_reply})
 
-    # 使用 LINE API 回復用戶
+    # 使用 LINE API 回复用户
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=assistant_reply))
