@@ -19,40 +19,6 @@ app = FastAPI()
 # 存儲用戶會話的對象
 user_conversations = {}
 
-def get_current_weather(location, units="metric"):
-    """Get the current weather in a given location"""
-    API_KEY = os.getenv('WEATHER_API_KEY')  # Get your API key from environment variables
-    response = requests.get(
-        f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={API_KEY}&units={units}"
-    )
-    weather_info = response.json()
-    return {
-        "location": location,
-        "temperature": weather_info["main"]["temp"],
-        "description": weather_info["weather"][0]["description"],
-        "units": units,
-    }
-
-
-# 創建回調函數
-@app.post("/callback")
-async def callback(request: Request):
-    # 獲取請求簽名
-    signature = request.headers["X-Line-Signature"]
-
-    # 獲取請求內容
-    body = await request.body()
-
-    try:
-        # 驗證簽名和處理請求
-        handler.handle(body.decode(), signature)
-    except InvalidSignatureError:
-        # 如果簽名不正確，則返回 HTTP 403 錯誤
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid request"
-        )
-
-    return "OK"
 
 # 處理用戶發送的消息
 @handler.add(MessageEvent, message=TextMessage)
@@ -86,51 +52,9 @@ def handle_message(event: MessageEvent):
     openai_response =  ai.ChatCompletion.create(
         model="gpt-4-0613",
         messages=user_conversations[user_id],
-        functions=[
-            {
-                "name": "get_current_weather",
-                "description": "Get the current weather in a given location",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city and state, e.g. San Francisco, CA",
-                        },
-                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
-                    },
-                    "required": ["location"],
-                },
-            }
-        ],
-        function_call="auto",
+        
     )
-    # Step 2, check if the model wants to call a function
-    message = openai_response["choices"][0]["message"]
-    if "function_call" in message:
-        function_name = message["function_call"]["name"]
-        function_params = message["function_call"].get("params", {})
-
-        try:
-            if "location" in function_params and function_params["location"] is not None:
-                location = function_params["location"]
-                units = function_params.get("units", "metric")
-                function_response = get_current_weather(location, units)
-            else:
-                function_response = "Location parameter is missing or None."
-            
-            # 将函数回复赋值给助手回复
-            assistant_reply = function_response
-        except Exception as e:
-            # 如果函数调用失败，将错误消息赋值给助手回复
-            assistant_reply = str(e)
-
-        # 将函数调用的信息和结果添加到对话中
-        user_conversations[user_id].append({
-            "role": "function",
-            "name": function_name,
-            "content": function_response,
-        })
+    
 
     # 获取助手回复的文本
     assistant_reply = openai_response['choices'][0]['message']['content']
