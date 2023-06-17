@@ -21,7 +21,7 @@ app = FastAPI()
 user_conversations: Dict[str, List[Dict[str, str]]] = {}
 
 
-@app.post("/")
+@app.post("/callback")
 async def callback(request: Request):
     body = await request.body()
     signature = request.headers.get('X-Line-Signature')
