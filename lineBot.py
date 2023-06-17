@@ -1,60 +1,74 @@
 from fastapi import FastAPI, Request, status, HTTPException
-from linebot import LineBotApi, WebhookHandler
+from linebot import LineBotApi, WebhookParser
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import os
 import openai as ai
 import requests
+from typing import Dict, List
 
-# 獲取 LINE 密鑰
+# 获取 LINE 密钥
 channel_access_token = os.getenv('CHANNEL_ACCESS_TOKEN')
 channel_secret = os.getenv('CHANNEL_SECRET')
 
-# 創建 LINE 客戶端
+# 创建 LINE 客户端
 line_bot_api = LineBotApi(channel_access_token)
-handler = WebhookHandler(channel_secret)
+parser = WebhookParser(channel_secret)
 
 app = FastAPI()
 
-# 存儲用戶會話的對象
-user_conversations = {}
+# 存储用户会话的对象
+user_conversations: Dict[str, List[Dict[str, str]]] = {}
 
 
-# 處理用戶發送的消息
-@handler.add(MessageEvent, message=TextMessage)
+@app.post("/")
+async def callback(request: Request):
+    body = await request.body()
+    signature = request.headers.get('X-Line-Signature')
+
+    try:
+        events = parser.parse(body.decode('utf-8'), signature)
+    except InvalidSignatureError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
+    for event in events:
+        if isinstance(event, MessageEvent):
+            handle_message(event)
+
+    return "OK"
+
+
 def handle_message(event: MessageEvent):
-    # 如果消息類型不是文本，則忽略
+    # 如果消息类型不是文本，则忽略
     if not isinstance(event.message, TextMessage):
         return
 
-    # 進行自然語言處理並回復用戶
+    # 进行自然语言处理并回复用户
     text = event.message.text
     user_id = event.source.user_id
 
-    # 如果不存在該用戶的對話，為其創建一個
+    # 如果不存在该用户的对话，为其创建一个
     if user_id not in user_conversations:
         user_conversations[user_id] = [
             {"role": "system", "content": '你是人工智能助理'}
         ]
 
-    # 將用戶消息添加到會話中
-    user_conversations[user_id].append({"role": "user", "content": text + '回答字數限制在1000以內'})
+    # 将用户消息添加到会话中
+    user_conversations[user_id].append({"role": "user", "content": text + '回答字数限制在1000以内'})
 
-    # 如果會話長度超過 4 條消息，則刪除最早的一條
+    # 如果会话长度超过 4 条消息，则删除最早的一条
     if len(user_conversations[user_id]) > 4:
         user_conversations[user_id].pop(0)
 
-    # 獲取 OpenAI API 密鑰
+    # 获取 OpenAI API 密钥
     openai_api_key = os.getenv('OPENAI_API_KEY')
 
-    # 使用 OpenAI API 獲取回復
+    # 使用 OpenAI API 获取回复
     ai.api_key = openai_api_key
-    openai_response =  ai.ChatCompletion.create(
+    openai_response = ai.ChatCompletion.create(
         model="gpt-4-0613",
         messages=user_conversations[user_id],
-        
     )
-    
 
     # 获取助手回复的文本
     assistant_reply = openai_response['choices'][0]['message']['content']
